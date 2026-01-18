@@ -1,0 +1,9 @@
+{
+  "build": {
+    "builder": "NIXPACKS"
+  },
+  "deploy": {
+    "startCommand": "python FINAL_WORKING_VERSION.py",
+    "restartPolicyType": "ON_FAILURE"
+  }
+}
