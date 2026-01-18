@@ -3,6 +3,8 @@ from flask_socketio import SocketIO, emit, join_room, leave_room
 from datetime import datetime
 import os
 import uuid
+import random
+import string
 from werkzeug.utils import secure_filename
 import base64
 
@@ -35,7 +37,9 @@ def get_file_type(filename):
         return 'file'
 
 def generate_room_code():
-    return ''.join([str(uuid.uuid4()).upper()[:6]])
+    import random
+    import string
+    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
 
 @app.route('/')
 def index():
@@ -213,6 +217,7 @@ def handle_file_upload(data):
             rooms[room]['messages'] = rooms[room]['messages'][-100:]
         
         emit('receive_message', message_data, room=room)
+        emit('file_uploaded', {'success': True})
         
     except Exception as e:
         emit('upload_error', {'message': 'Upload failed'})

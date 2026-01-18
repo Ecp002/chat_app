@@ -454,6 +454,59 @@ body {
     transition: width 0.3s;
 }
 
+@media (max-width: 768px) {
+    .chat-container {
+        flex-direction: column;
+    }
+    
+    .sidebar {
+        width: 100%;
+        height: auto;
+        max-height: 200px;
+        order: 2;
+    }
+    
+    .chat-main {
+        order: 1;
+        height: calc(100vh - 200px);
+    }
+    
+    .login-box {
+        min-width: 300px;
+        margin: 20px;
+        padding: 30px;
+    }
+    
+    .room-code-display {
+        margin-top: 10px;
+        padding: 10px;
+    }
+    
+    .online-users {
+        padding: 15px;
+    }
+}
+
+@media (max-width: 480px) {
+    .login-box {
+        min-width: 280px;
+        padding: 20px;
+    }
+    
+    .tab-container {
+        flex-direction: column;
+        gap: 5px;
+    }
+    
+    .input-container {
+        padding: 6px;
+    }
+    
+    #message-input {
+        padding: 10px 12px;
+        font-size: 16px; /* Prevents zoom on iOS */
+    }
+}
 ::-webkit-scrollbar {
     width: 8px;
 }

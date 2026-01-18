@@ -6,9 +6,11 @@ let roomCode = '';
 let typingTimeout;
 
 function switchTab(tab) {
+    // Update tab buttons
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-    event.target.classList.add('active');
+    document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add('active');
     
+    // Update tab content
     document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
     document.getElementById(tab + '-tab').classList.add('active');
 }
@@ -19,8 +21,20 @@ function createRoom() {
     
     if (!username) {
         alert('Please enter a username');
+        document.getElementById('username-input').focus();
         return;
     }
+    
+    if (username.length < 2) {
+        alert('Username must be at least 2 characters');
+        document.getElementById('username-input').focus();
+        return;
+    }
+    
+    // Disable button to prevent double-click
+    const btn = document.querySelector('#create-tab .primary-btn');
+    btn.disabled = true;
+    btn.textContent = 'Creating...';
     
     socket.emit('create_room', { username, room_name: roomName });
 }
@@ -31,13 +45,32 @@ function joinWithCode() {
     
     if (!username) {
         alert('Please enter a username');
+        document.getElementById('username-input').focus();
+        return;
+    }
+    
+    if (username.length < 2) {
+        alert('Username must be at least 2 characters');
+        document.getElementById('username-input').focus();
         return;
     }
     
     if (!code) {
         alert('Please enter a room code');
+        document.getElementById('code-input').focus();
         return;
     }
+    
+    if (code.length !== 6) {
+        alert('Room code must be 6 characters');
+        document.getElementById('code-input').focus();
+        return;
+    }
+    
+    // Disable button to prevent double-click
+    const btn = document.querySelector('#join-tab .primary-btn');
+    btn.disabled = true;
+    btn.textContent = 'Joining...';
     
     socket.emit('join_with_code', { username, code });
 }
@@ -54,18 +87,58 @@ function sendMessage() {
 
 function copyCode() {
     const code = document.getElementById('room-code').textContent;
-    navigator.clipboard.writeText(code).then(() => {
+    
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(code).then(() => {
+            const btn = document.querySelector('.copy-btn');
+            btn.textContent = '✓';
+            setTimeout(() => {
+                btn.textContent = '📋';
+            }, 2000);
+        }).catch(() => {
+            // Fallback for older browsers
+            fallbackCopyTextToClipboard(code);
+        });
+    } else {
+        fallbackCopyTextToClipboard(code);
+    }
+}
+
+function fallbackCopyTextToClipboard(text) {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    
+    try {
+        document.execCommand('copy');
         const btn = document.querySelector('.copy-btn');
         btn.textContent = '✓';
         setTimeout(() => {
             btn.textContent = '📋';
         }, 2000);
-    });
+    } catch (err) {
+        alert('Copy failed. Code: ' + text);
+    }
+    
+    document.body.removeChild(textArea);
 }
 
 // Socket event listeners
 socket.on('connect', () => {
     console.log('Connected to server');
+    updateConnectionStatus('Connected', 'green');
+});
+
+socket.on('disconnect', () => {
+    console.log('Disconnected from server');
+    updateConnectionStatus('Disconnected', 'red');
+});
+
+socket.on('connect_error', () => {
+    console.log('Connection failed');
+    updateConnectionStatus('Connection Failed', 'red');
 });
 
 socket.on('room_created', (data) => {
@@ -73,6 +146,7 @@ socket.on('room_created', (data) => {
     roomCode = data.code;
     showChatScreen(data.room_name, data.code);
     loadMessages(data.messages);
+    resetButtons();
 });
 
 socket.on('room_joined', (data) => {
@@ -80,10 +154,12 @@ socket.on('room_joined', (data) => {
     roomCode = data.code;
     showChatScreen(data.room_name, data.code);
     loadMessages(data.messages);
+    resetButtons();
 });
 
 socket.on('join_error', (data) => {
     alert('Error: ' + data.message);
+    resetButtons();
 });
 
 socket.on('receive_message', (data) => {
@@ -127,7 +203,48 @@ socket.on('upload_error', (data) => {
     alert('Upload failed: ' + data.message);
 });
 
+socket.on('file_uploaded', (data) => {
+    hideUploadProgress();
+    console.log('File uploaded successfully');
+});
+
 // Helper functions
+function updateConnectionStatus(status, color) {
+    // Create status indicator if it doesn't exist
+    let statusDiv = document.getElementById('connection-status');
+    if (!statusDiv) {
+        statusDiv = document.createElement('div');
+        statusDiv.id = 'connection-status';
+        statusDiv.style.cssText = `
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            z-index: 1000;
+            background: white;
+            border: 1px solid #ccc;
+        `;
+        document.body.appendChild(statusDiv);
+    }
+    
+    statusDiv.textContent = status;
+    statusDiv.style.color = color;
+    statusDiv.style.borderColor = color;
+}
+
+function resetButtons() {
+    const createBtn = document.querySelector('#create-tab .primary-btn');
+    const joinBtn = document.querySelector('#join-tab .primary-btn');
+    
+    createBtn.disabled = false;
+    createBtn.textContent = 'Create & Join';
+    
+    joinBtn.disabled = false;
+    joinBtn.textContent = 'Join Room';
+}
+
 function showChatScreen(roomName, code) {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('chat-screen').style.display = 'block';
@@ -276,6 +393,13 @@ document.getElementById('file-input').addEventListener('change', (e) => {
             return;
         }
         
+        // Check file type
+        const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'video/mp4', 'video/webm', 'application/pdf', 'text/plain', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+        if (!allowedTypes.includes(file.type)) {
+            alert('File type not supported. Please use images, videos, PDF, or text files.');
+            return;
+        }
+        
         showUploadProgress();
         
         const reader = new FileReader();
@@ -284,7 +408,6 @@ document.getElementById('file-input').addEventListener('change', (e) => {
                 filename: file.name,
                 file_data: event.target.result
             });
-            hideUploadProgress();
         };
         
         reader.onerror = function() {
