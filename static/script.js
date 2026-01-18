@@ -36,6 +36,14 @@ function createRoom() {
     btn.disabled = true;
     btn.textContent = 'Creating...';
     
+    // Set timeout to reset button if no response
+    setTimeout(() => {
+        if (btn.textContent === 'Creating...') {
+            resetButtons();
+            alert('Connection timeout. Please try again.');
+        }
+    }, 10000);
+    
     socket.emit('create_room', { username, room_name: roomName });
 }
 
@@ -71,6 +79,14 @@ function joinWithCode() {
     const btn = document.querySelector('#join-tab .primary-btn');
     btn.disabled = true;
     btn.textContent = 'Joining...';
+    
+    // Set timeout to reset button if no response
+    setTimeout(() => {
+        if (btn.textContent === 'Joining...') {
+            resetButtons();
+            alert('Connection timeout. Please try again.');
+        }
+    }, 10000);
     
     socket.emit('join_with_code', { username, code });
 }
@@ -128,17 +144,20 @@ function fallbackCopyTextToClipboard(text) {
 // Socket event listeners
 socket.on('connect', () => {
     console.log('Connected to server');
-    updateConnectionStatus('Connected', 'green');
+    // Test connection by emitting a simple event
+    socket.emit('test_connection');
+});
+
+socket.on('connection_confirmed', () => {
+    console.log('Server connection confirmed');
 });
 
 socket.on('disconnect', () => {
     console.log('Disconnected from server');
-    updateConnectionStatus('Disconnected', 'red');
 });
 
 socket.on('connect_error', () => {
     console.log('Connection failed');
-    updateConnectionStatus('Connection Failed', 'red');
 });
 
 socket.on('room_created', (data) => {
@@ -209,40 +228,19 @@ socket.on('file_uploaded', (data) => {
 });
 
 // Helper functions
-function updateConnectionStatus(status, color) {
-    // Create status indicator if it doesn't exist
-    let statusDiv = document.getElementById('connection-status');
-    if (!statusDiv) {
-        statusDiv = document.createElement('div');
-        statusDiv.id = 'connection-status';
-        statusDiv.style.cssText = `
-            position: fixed;
-            top: 10px;
-            left: 10px;
-            padding: 5px 10px;
-            border-radius: 5px;
-            font-size: 12px;
-            z-index: 1000;
-            background: white;
-            border: 1px solid #ccc;
-        `;
-        document.body.appendChild(statusDiv);
-    }
-    
-    statusDiv.textContent = status;
-    statusDiv.style.color = color;
-    statusDiv.style.borderColor = color;
-}
-
 function resetButtons() {
     const createBtn = document.querySelector('#create-tab .primary-btn');
     const joinBtn = document.querySelector('#join-tab .primary-btn');
     
-    createBtn.disabled = false;
-    createBtn.textContent = 'Create & Join';
+    if (createBtn) {
+        createBtn.disabled = false;
+        createBtn.textContent = 'Create & Join';
+    }
     
-    joinBtn.disabled = false;
-    joinBtn.textContent = 'Join Room';
+    if (joinBtn) {
+        joinBtn.disabled = false;
+        joinBtn.textContent = 'Join Room';
+    }
 }
 
 function showChatScreen(roomName, code) {
