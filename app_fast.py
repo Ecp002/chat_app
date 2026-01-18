@@ -1,40 +1,18 @@
-from flask import Flask, render_template, request, send_from_directory
-from flask_socketio import SocketIO, emit, join_room, leave_room
+from flask import Flask, render_template, request
+from flask_socketio import SocketIO, emit, join_room
 from datetime import datetime
 import os
-import uuid
-import random
-import string
-from werkzeug.utils import secure_filename
-import base64
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key-here'
-app.config['UPLOAD_FOLDER'] = 'uploads'
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'mp4', 'webm', 'pdf', 'txt', 'doc', 'docx'}
-
+# Use threading for faster local development
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
 # Store active users and rooms
 users = {}
 rooms = {}
-room_codes = {}  # Maps codes to room names
-
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-def get_file_type(filename):
-    ext = filename.rsplit('.', 1)[1].lower()
-    if ext in ['png', 'jpg', 'jpeg', 'gif']:
-        return 'image'
-    elif ext in ['mp4', 'webm']:
-        return 'video'
-    else:
-        return 'file'
+room_codes = {}
 
 def generate_room_code():
     import random
@@ -45,10 +23,6 @@ def generate_room_code():
 def index():
     return render_template('index.html')
 
-@app.route('/uploads/<filename>')
-def uploaded_file(filename):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
-
 @socketio.on('connect')
 def handle_connect():
     print(f'Client connected: {request.sid}')
@@ -57,24 +31,6 @@ def handle_connect():
 def handle_test_connection():
     print(f'Connection test from: {request.sid}')
     emit('connection_confirmed')
-
-@socketio.on('disconnect')
-def handle_disconnect():
-    print(f'Client disconnected: {request.sid}')
-    if request.sid in users:
-        username = users[request.sid]['username']
-        room = users[request.sid]['room']
-        
-        if room in rooms and username in rooms[room]['users']:
-            rooms[room]['users'].remove(username)
-        
-        emit('user_left', {
-            'username': username,
-            'timestamp': datetime.now().strftime('%H:%M')
-        }, room=room)
-        
-        emit('update_users', {'users': rooms[room]['users']}, room=room)
-        del users[request.sid]
 
 @socketio.on('create_room')
 def handle_create_room(data):
@@ -201,63 +157,25 @@ def handle_message(data):
     emit('receive_message', message_data, room=room)
     print(f'{username} in {room}: {message}')
 
-@socketio.on('upload_file')
-def handle_file_upload(data):
-    if request.sid not in users:
-        return
-    
-    username = users[request.sid]['username']
-    room = users[request.sid]['room']
-    
-    try:
-        file_data = base64.b64decode(data['file_data'].split(',')[1])
-        filename = secure_filename(data['filename'])
+@socketio.on('disconnect')
+def handle_disconnect():
+    print(f'Client disconnected: {request.sid}')
+    if request.sid in users:
+        username = users[request.sid]['username']
+        room = users[request.sid]['room']
         
-        if not allowed_file(filename):
-            emit('upload_error', {'message': 'File type not allowed'})
-            return
+        if room in rooms and username in rooms[room]['users']:
+            rooms[room]['users'].remove(username)
         
-        unique_filename = f"{uuid.uuid4()}_{filename}"
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
-        
-        with open(file_path, 'wb') as f:
-            f.write(file_data)
-        
-        timestamp = datetime.now().strftime('%H:%M')
-        message_data = {
+        emit('user_left', {
             'username': username,
-            'message': '',
-            'timestamp': timestamp,
-            'file': {
-                'filename': filename,
-                'url': f'/uploads/{unique_filename}',
-                'type': get_file_type(filename),
-                'size': len(file_data)
-            }
-        }
+            'timestamp': datetime.now().strftime('%H:%M')
+        }, room=room)
         
-        rooms[room]['messages'].append(message_data)
-        
-        if len(rooms[room]['messages']) > 100:
-            rooms[room]['messages'] = rooms[room]['messages'][-100:]
-        
-        emit('receive_message', message_data, room=room)
-        emit('file_uploaded', {'success': True})
-        
-    except Exception as e:
-        emit('upload_error', {'message': 'Upload failed'})
-        print(f"Upload error: {e}")
-
-@socketio.on('typing')
-def handle_typing():
-    if request.sid not in users:
-        return
-    
-    username = users[request.sid]['username']
-    room = users[request.sid]['room']
-    
-    emit('user_typing', {'username': username}, room=room, include_self=False)
+        emit('update_users', {'users': rooms[room]['users']}, room=room)
+        del users[request.sid]
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
+    print(f"Starting server on port {port}")
     socketio.run(app, debug=True, host='0.0.0.0', port=port, allow_unsafe_werkzeug=True)

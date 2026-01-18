@@ -1,4 +1,8 @@
-const socket = io();
+const socket = io({
+    transports: ['websocket'],
+    upgrade: false,
+    timeout: 5000
+});
 
 let username = '';
 let room = '';
