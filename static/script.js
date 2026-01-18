@@ -5,39 +5,24 @@ let room = '';
 let roomCode = '';
 let typingTimeout;
 
-// Room code mapping (in production, this would be server-side)
-const roomCodes = {};
-
 function switchTab(tab) {
-    // Update tab buttons
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
     event.target.classList.add('active');
     
-    // Update tab content
     document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
     document.getElementById(tab + '-tab').classList.add('active');
 }
 
-function generateRoomCode() {
-    return Math.random().toString(36).substring(2, 8).toUpperCase();
-}
-
 function createRoom() {
     username = document.getElementById('username-input').value.trim();
-    room = document.getElementById('room-input').value.trim() || 'general';
+    const roomName = document.getElementById('room-input').value.trim() || 'general';
     
     if (!username) {
         alert('Please enter a username');
         return;
     }
     
-    // Generate unique room code
-    roomCode = generateRoomCode();
-    
-    // Store mapping
-    roomCodes[roomCode] = room;
-    
-    joinChatRoom(room, roomCode);
+    socket.emit('create_room', { username, room_name: roomName });
 }
 
 function joinWithCode() {
@@ -54,28 +39,17 @@ function joinWithCode() {
         return;
     }
     
-    // In production, validate code with server
-    // For now, we'll use the code as the room name
-    room = code;
-    roomCode = code;
-    
-    joinChatRoom(room, roomCode);
+    socket.emit('join_with_code', { username, code });
 }
 
-function joinChatRoom(roomName, code) {
-    console.log('Joining room:', roomName, 'with code:', code);
+function sendMessage() {
+    const input = document.getElementById('message-input');
+    const message = input.value.trim();
     
-    // Hide login, show chat
-    document.getElementById('login-screen').style.display = 'none';
-    document.getElementById('chat-screen').style.display = 'block';
-    document.getElementById('room-name').textContent = roomName;
-    document.getElementById('room-code').textContent = code;
-    
-    // Join the room
-    socket.emit('join', { username, room: roomName, code });
-    
-    // Focus on message input
-    document.getElementById('message-input').focus();
+    if (message) {
+        socket.emit('send_message', { message });
+        input.value = '';
+    }
 }
 
 function copyCode() {
@@ -89,67 +63,45 @@ function copyCode() {
     });
 }
 
-function sendMessage() {
-    const input = document.getElementById('message-input');
-    const message = input.value.trim();
-    
-    if (message) {
-        console.log('Sending message:', message);
-        socket.emit('send_message', { message });
-        input.value = '';
-    }
-}
-
 // Socket event listeners
 socket.on('connect', () => {
     console.log('Connected to server');
 });
 
-socket.on('connected', (data) => {
-    console.log('Server confirmed connection:', data.status);
+socket.on('room_created', (data) => {
+    room = data.room_name;
+    roomCode = data.code;
+    showChatScreen(data.room_name, data.code);
+    loadMessages(data.messages);
 });
 
-socket.on('disconnect', () => {
-    console.log('Disconnected from server');
+socket.on('room_joined', (data) => {
+    room = data.room_name;
+    roomCode = data.code;
+    showChatScreen(data.room_name, data.code);
+    loadMessages(data.messages);
 });
 
-socket.on('message_history', (data) => {
-    console.log('Received message history:', data);
-    const messagesDiv = document.getElementById('messages');
-    messagesDiv.innerHTML = '';
-    
-    data.messages.forEach(msg => {
-        addMessage(msg.username, msg.message, msg.timestamp, msg.file);
-    });
-    
-    scrollToBottom();
+socket.on('join_error', (data) => {
+    alert('Error: ' + data.message);
 });
 
 socket.on('receive_message', (data) => {
-    console.log('Received message:', data);
     addMessage(data.username, data.message, data.timestamp, data.file);
     scrollToBottom();
 });
 
-socket.on('upload_error', (data) => {
-    hideUploadProgress();
-    alert('Upload failed: ' + data.message);
-});
-
 socket.on('user_joined', (data) => {
-    console.log('User joined:', data);
     addSystemMessage(`${data.username} joined the chat`);
     scrollToBottom();
 });
 
 socket.on('user_left', (data) => {
-    console.log('User left:', data);
     addSystemMessage(`${data.username} left the chat`);
     scrollToBottom();
 });
 
 socket.on('update_users', (data) => {
-    console.log('Users updated:', data);
     const usersList = document.getElementById('users-list');
     usersList.innerHTML = '';
     
@@ -170,7 +122,31 @@ socket.on('user_typing', (data) => {
     }, 2000);
 });
 
+socket.on('upload_error', (data) => {
+    hideUploadProgress();
+    alert('Upload failed: ' + data.message);
+});
+
 // Helper functions
+function showChatScreen(roomName, code) {
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('chat-screen').style.display = 'block';
+    document.getElementById('room-name').textContent = roomName;
+    document.getElementById('room-code').textContent = code;
+    document.getElementById('message-input').focus();
+}
+
+function loadMessages(messages) {
+    const messagesDiv = document.getElementById('messages');
+    messagesDiv.innerHTML = '';
+    
+    messages.forEach(msg => {
+        addMessage(msg.username, msg.message, msg.timestamp, msg.file);
+    });
+    
+    scrollToBottom();
+}
+
 function addMessage(username, message, timestamp, file = null) {
     const messagesDiv = document.getElementById('messages');
     
@@ -237,6 +213,19 @@ function addMessage(username, message, timestamp, file = null) {
     messagesDiv.appendChild(messageDiv);
 }
 
+function addSystemMessage(message) {
+    const messagesDiv = document.getElementById('messages');
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'system-message';
+    messageDiv.textContent = message;
+    messagesDiv.appendChild(messageDiv);
+}
+
+function scrollToBottom() {
+    const messagesDiv = document.getElementById('messages');
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+}
+
 function getFileIcon(filename) {
     const ext = filename.split('.').pop().toLowerCase();
     const icons = {
@@ -268,23 +257,6 @@ function showUploadProgress() {
 
 function hideUploadProgress() {
     document.getElementById('upload-progress').style.display = 'none';
-}
-
-function updateProgress(percent) {
-    document.querySelector('.progress-fill').style.width = percent + '%';
-}
-
-function addSystemMessage(message) {
-    const messagesDiv = document.getElementById('messages');
-    const messageDiv = document.createElement('div');
-    messageDiv.className = 'system-message';
-    messageDiv.textContent = message;
-    messagesDiv.appendChild(messageDiv);
-}
-
-function scrollToBottom() {
-    const messagesDiv = document.getElementById('messages');
-    messagesDiv.scrollTop = messagesDiv.scrollHeight;
 }
 
 // Event listeners
@@ -323,7 +295,6 @@ document.getElementById('file-input').addEventListener('change', (e) => {
         reader.readAsDataURL(file);
     }
     
-    // Reset input
     e.target.value = '';
 });
 
