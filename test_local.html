@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Local Test</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+</head>
+<body>
+    <h1>Local Connection Test</h1>
+    <div id="status">Connecting...</div>
+    <br>
+    <input type="text" id="username" placeholder="Username" value="testuser">
+    <button onclick="createRoom()">Create Room</button>
+    <div id="result"></div>
+    
+    <script>
+        const socket = io('http://localhost:5000', {
+            transports: ['polling', 'websocket'],
+            timeout: 10000
+        });
+        
+        socket.on('connect', () => {
+            document.getElementById('status').textContent = 'Connected!';
+            document.getElementById('status').style.color = 'green';
+        });
+        
+        socket.on('connect_error', (error) => {
+            document.getElementById('status').textContent = 'Connection Failed: ' + error;
+            document.getElementById('status').style.color = 'red';
+        });
+        
+        socket.on('room_created', (data) => {
+            document.getElementById('result').innerHTML = `
+                <h3>Room Created!</h3>
+                <p>Room: ${data.room_name}</p>
+                <p>Code: ${data.code}</p>
+            `;
+        });
+        
+        function createRoom() {
+            const username = document.getElementById('username').value;
+            socket.emit('create_room', { username, room_name: 'test' });
+        }
+    </script>
+</body>
+</html>

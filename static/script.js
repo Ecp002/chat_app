@@ -1,7 +1,7 @@
 const socket = io({
-    transports: ['websocket'],
-    upgrade: false,
-    timeout: 5000
+    transports: ['polling', 'websocket'],
+    timeout: 20000,
+    forceNew: true
 });
 
 let username = '';
@@ -160,8 +160,22 @@ socket.on('disconnect', () => {
     console.log('Disconnected from server');
 });
 
-socket.on('connect_error', () => {
-    console.log('Connection failed');
+socket.on('connect_error', (error) => {
+    console.log('Connection failed:', error);
+    // Show user-friendly message
+    setTimeout(() => {
+        if (!socket.connected) {
+            alert('Connection failed. Please refresh the page and try again.');
+        }
+    }, 5000);
+});
+
+socket.on('reconnect', () => {
+    console.log('Reconnected to server');
+});
+
+socket.on('reconnect_error', (error) => {
+    console.log('Reconnection failed:', error);
 });
 
 socket.on('room_created', (data) => {
