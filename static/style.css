@@ -290,39 +290,168 @@ body {
 }
 
 .input-area {
-    display: flex;
     padding: 20px;
     background: white;
     border-top: 1px solid #e0e0e0;
 }
 
-#message-input {
-    flex: 1;
-    padding: 12px;
+.input-container {
+    display: flex;
+    align-items: center;
+    background: #f8f9fa;
+    border-radius: 25px;
+    padding: 8px;
     border: 2px solid #e0e0e0;
-    border-radius: 5px;
-    font-size: 14px;
-    margin-right: 10px;
+    transition: border-color 0.3s;
 }
 
-#message-input:focus {
-    outline: none;
+.input-container:focus-within {
     border-color: #ffb6c1;
 }
 
-.input-area button {
-    padding: 12px 30px;
-    background: #ffb6c1;
-    color: white;
+#message-input {
+    flex: 1;
+    padding: 12px 16px;
     border: none;
-    border-radius: 5px;
+    background: transparent;
     font-size: 14px;
-    cursor: pointer;
-    transition: background 0.3s;
+    outline: none;
 }
 
-.input-area button:hover {
-    background: #ff69b4;
+.input-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.file-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    background: #ffe4e9;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 18px;
+    transition: all 0.3s;
+}
+
+.file-btn:hover {
+    background: #ffb6c1;
+    transform: scale(1.1);
+}
+
+.send-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    background: linear-gradient(135deg, #ffb6c1 0%, #ff69b4 100%);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.send-btn:hover {
+    transform: scale(1.1);
+    box-shadow: 0 4px 15px rgba(255, 105, 180, 0.4);
+}
+
+.message-file {
+    margin-top: 8px;
+    max-width: 300px;
+}
+
+.file-preview {
+    background: #f8f9fa;
+    border: 1px solid #e0e0e0;
+    border-radius: 10px;
+    padding: 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: all 0.3s;
+}
+
+.file-preview:hover {
+    background: #fff;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.file-icon {
+    font-size: 24px;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #ffb6c1;
+    border-radius: 8px;
+    color: white;
+}
+
+.file-info {
+    flex: 1;
+}
+
+.file-name {
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 4px;
+    word-break: break-all;
+}
+
+.file-size {
+    font-size: 12px;
+    color: #666;
+}
+
+.media-preview img {
+    max-width: 100%;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: transform 0.3s;
+}
+
+.media-preview img:hover {
+    transform: scale(1.02);
+}
+
+.media-preview video {
+    max-width: 100%;
+    border-radius: 10px;
+}
+
+.upload-progress {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: white;
+    padding: 15px 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    z-index: 1000;
+    display: none;
+}
+
+.progress-bar {
+    width: 200px;
+    height: 4px;
+    background: #e0e0e0;
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 8px;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #ffb6c1, #ff69b4);
+    width: 0%;
+    transition: width 0.3s;
 }
 
 ::-webkit-scrollbar {

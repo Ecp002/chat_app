@@ -54,10 +54,29 @@
                 <div id="messages"></div>
                 <div id="typing-indicator"></div>
                 <div class="input-area">
-                    <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off">
-                    <button onclick="sendMessage()">Send</button>
+                    <div class="input-container">
+                        <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off">
+                        <div class="input-actions">
+                            <label for="file-input" class="file-btn" title="Share media">
+                                📎
+                                <input type="file" id="file-input" accept="image/*,video/*,.pdf,.txt,.doc,.docx" style="display: none;">
+                            </label>
+                            <button onclick="sendMessage()" class="send-btn">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <div id="upload-progress" class="upload-progress">
+        <div>Uploading file...</div>
+        <div class="progress-bar">
+            <div class="progress-fill"></div>
         </div>
     </div>
 

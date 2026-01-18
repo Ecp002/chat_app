@@ -103,15 +103,20 @@ socket.on('message_history', (data) => {
     messagesDiv.innerHTML = '';
     
     data.messages.forEach(msg => {
-        addMessage(msg.username, msg.message, msg.timestamp);
+        addMessage(msg.username, msg.message, msg.timestamp, msg.file);
     });
     
     scrollToBottom();
 });
 
 socket.on('receive_message', (data) => {
-    addMessage(data.username, data.message, data.timestamp);
+    addMessage(data.username, data.message, data.timestamp, data.file);
     scrollToBottom();
+});
+
+socket.on('upload_error', (data) => {
+    hideUploadProgress();
+    alert('Upload failed: ' + data.message);
 });
 
 socket.on('user_joined', (data) => {
@@ -146,7 +151,7 @@ socket.on('user_typing', (data) => {
 });
 
 // Helper functions
-function addMessage(username, message, timestamp) {
+function addMessage(username, message, timestamp, file = null) {
     const messagesDiv = document.getElementById('messages');
     
     const messageDiv = document.createElement('div');
@@ -165,14 +170,88 @@ function addMessage(username, message, timestamp) {
     
     headerDiv.appendChild(usernameSpan);
     headerDiv.appendChild(timestampSpan);
-    
-    const textDiv = document.createElement('div');
-    textDiv.className = 'message-text';
-    textDiv.textContent = message;
-    
     messageDiv.appendChild(headerDiv);
-    messageDiv.appendChild(textDiv);
+    
+    if (message) {
+        const textDiv = document.createElement('div');
+        textDiv.className = 'message-text';
+        textDiv.textContent = message;
+        messageDiv.appendChild(textDiv);
+    }
+    
+    if (file) {
+        const fileDiv = document.createElement('div');
+        fileDiv.className = 'message-file';
+        
+        if (file.type === 'image') {
+            fileDiv.innerHTML = `
+                <div class="media-preview">
+                    <img src="${file.url}" alt="${file.filename}" onclick="openMedia('${file.url}')">
+                </div>
+            `;
+        } else if (file.type === 'video') {
+            fileDiv.innerHTML = `
+                <div class="media-preview">
+                    <video controls>
+                        <source src="${file.url}" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                </div>
+            `;
+        } else {
+            const icon = getFileIcon(file.filename);
+            fileDiv.innerHTML = `
+                <div class="file-preview" onclick="window.open('${file.url}', '_blank')">
+                    <div class="file-icon">${icon}</div>
+                    <div class="file-info">
+                        <div class="file-name">${file.filename}</div>
+                        <div class="file-size">${formatFileSize(file.size)}</div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        messageDiv.appendChild(fileDiv);
+    }
+    
     messagesDiv.appendChild(messageDiv);
+}
+
+function getFileIcon(filename) {
+    const ext = filename.split('.').pop().toLowerCase();
+    const icons = {
+        'pdf': '📄',
+        'doc': '📝',
+        'docx': '📝',
+        'txt': '📄',
+        'zip': '📦',
+        'rar': '📦'
+    };
+    return icons[ext] || '📎';
+}
+
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+function openMedia(url) {
+    window.open(url, '_blank');
+}
+
+function showUploadProgress() {
+    document.getElementById('upload-progress').style.display = 'block';
+}
+
+function hideUploadProgress() {
+    document.getElementById('upload-progress').style.display = 'none';
+}
+
+function updateProgress(percent) {
+    document.querySelector('.progress-fill').style.width = percent + '%';
 }
 
 function addSystemMessage(message) {
@@ -195,6 +274,37 @@ document.getElementById('message-input').addEventListener('keypress', (e) => {
     } else {
         socket.emit('typing');
     }
+});
+
+document.getElementById('file-input').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+        if (file.size > 16 * 1024 * 1024) {
+            alert('File size must be less than 16MB');
+            return;
+        }
+        
+        showUploadProgress();
+        
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            socket.emit('upload_file', {
+                filename: file.name,
+                file_data: event.target.result
+            });
+            hideUploadProgress();
+        };
+        
+        reader.onerror = function() {
+            hideUploadProgress();
+            alert('Error reading file');
+        };
+        
+        reader.readAsDataURL(file);
+    }
+    
+    // Reset input
+    e.target.value = '';
 });
 
 document.getElementById('username-input').addEventListener('keypress', (e) => {
