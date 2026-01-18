@@ -63,6 +63,8 @@ function joinWithCode() {
 }
 
 function joinChatRoom(roomName, code) {
+    console.log('Joining room:', roomName, 'with code:', code);
+    
     // Hide login, show chat
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('chat-screen').style.display = 'block';
@@ -92,13 +94,27 @@ function sendMessage() {
     const message = input.value.trim();
     
     if (message) {
+        console.log('Sending message:', message);
         socket.emit('send_message', { message });
         input.value = '';
     }
 }
 
 // Socket event listeners
+socket.on('connect', () => {
+    console.log('Connected to server');
+});
+
+socket.on('connected', (data) => {
+    console.log('Server confirmed connection:', data.status);
+});
+
+socket.on('disconnect', () => {
+    console.log('Disconnected from server');
+});
+
 socket.on('message_history', (data) => {
+    console.log('Received message history:', data);
     const messagesDiv = document.getElementById('messages');
     messagesDiv.innerHTML = '';
     
@@ -110,6 +126,7 @@ socket.on('message_history', (data) => {
 });
 
 socket.on('receive_message', (data) => {
+    console.log('Received message:', data);
     addMessage(data.username, data.message, data.timestamp, data.file);
     scrollToBottom();
 });
@@ -120,16 +137,19 @@ socket.on('upload_error', (data) => {
 });
 
 socket.on('user_joined', (data) => {
+    console.log('User joined:', data);
     addSystemMessage(`${data.username} joined the chat`);
     scrollToBottom();
 });
 
 socket.on('user_left', (data) => {
+    console.log('User left:', data);
     addSystemMessage(`${data.username} left the chat`);
     scrollToBottom();
 });
 
 socket.on('update_users', (data) => {
+    console.log('Users updated:', data);
     const usersList = document.getElementById('users-list');
     usersList.innerHTML = '';
     

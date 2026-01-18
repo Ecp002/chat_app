@@ -99,9 +99,11 @@ def handle_file_upload(data):
 @socketio.on('connect')
 def handle_connect():
     print(f'Client connected: {request.sid}')
+    emit('connected', {'status': 'Connected to server'})
 
 @socketio.on('disconnect')
 def handle_disconnect():
+    print(f'Client disconnected: {request.sid}')
     if request.sid in users:
         username = users[request.sid]['username']
         room = users[request.sid]['room']
