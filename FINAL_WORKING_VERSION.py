@@ -1,11 +1,34 @@
-from flask import Flask, render_template_string, request
+from flask import Flask, render_template_string, request, send_from_directory
 from flask_socketio import SocketIO, emit, join_room
 import random
 import string
 import os
+import uuid
+import base64
+from datetime import datetime
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'fallback-secret-key')
+app.config['UPLOAD_FOLDER'] = 'uploads'
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
+
+# Create uploads directory
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'mp4', 'webm', 'pdf', 'txt', 'doc', 'docx'}
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def get_file_type(filename):
+    ext = filename.rsplit('.', 1)[1].lower()
+    if ext in ['png', 'jpg', 'jpeg', 'gif']:
+        return 'image'
+    elif ext in ['mp4', 'webm']:
+        return 'video'
+    else:
+        return 'file'
 
 # Production-ready SocketIO configuration
 socketio = SocketIO(
@@ -24,6 +47,10 @@ codes = {}
 
 def generate_code():
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+
+@app.route('/uploads/<filename>')
+def uploaded_file(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 @app.route('/')
 def index():
@@ -369,6 +396,24 @@ def index():
             gap: 8px;
         }
 
+        .file-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            background: #ffe4e9;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+            transition: all 0.3s;
+        }
+
+        .file-btn:hover {
+            background: #ffb6c1;
+            transform: scale(1.1);
+        }
+
         .send-btn {
             display: flex;
             align-items: center;
@@ -386,6 +431,100 @@ def index():
         .send-btn:hover {
             transform: scale(1.1);
             box-shadow: 0 4px 15px rgba(255, 105, 180, 0.4);
+        }
+
+        .message-file {
+            margin-top: 8px;
+            max-width: 300px;
+        }
+
+        .media-preview img {
+            max-width: 100%;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: transform 0.3s;
+        }
+
+        .media-preview img:hover {
+            transform: scale(1.02);
+        }
+
+        .media-preview video {
+            max-width: 100%;
+            border-radius: 10px;
+        }
+
+        .file-preview {
+            background: #f8f9fa;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .file-preview:hover {
+            background: #fff;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .file-icon {
+            font-size: 24px;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #ffb6c1;
+            border-radius: 8px;
+            color: white;
+        }
+
+        .file-info {
+            flex: 1;
+        }
+
+        .file-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 4px;
+            word-break: break-all;
+        }
+
+        .file-size {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .upload-progress {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: white;
+            padding: 15px 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            z-index: 1000;
+            display: none;
+        }
+
+        .progress-bar {
+            width: 200px;
+            height: 4px;
+            background: #e0e0e0;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ffb6c1, #ff69b4);
+            width: 0%;
+            transition: width 0.3s;
         }
 
         @media (max-width: 768px) {
@@ -463,6 +602,10 @@ def index():
                     <div class="input-container">
                         <input type="text" id="message" placeholder="Type a message..." autocomplete="off" onkeypress="if(event.key==='Enter') sendMessage()">
                         <div class="input-actions">
+                            <label for="file-input" class="file-btn" title="Share media">
+                                📎
+                                <input type="file" id="file-input" accept="image/*,video/*,.pdf,.txt,.doc,.docx" style="display: none;">
+                            </label>
                             <button onclick="sendMessage()" class="send-btn">
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                                     <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
@@ -472,6 +615,13 @@ def index():
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <div id="upload-progress" class="upload-progress">
+        <div>Uploading file...</div>
+        <div class="progress-bar">
+            <div class="progress-fill"></div>
         </div>
     </div>
     
@@ -613,7 +763,51 @@ def index():
         });
         
         socket.on('message', (data) => {
-            addMessage(data.username, data.message, data.timestamp);
+            addMessage(data.username, data.message, data.timestamp, data.file);
+            if (data.file) {
+                hideUploadProgress();
+            }
+        });
+        
+        socket.on('upload_error', (data) => {
+            hideUploadProgress();
+            alert('Upload failed: ' + data.message);
+        });
+        
+        // File input handler
+        document.getElementById('file-input').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                if (file.size > 16 * 1024 * 1024) {
+                    alert('File size must be less than 16MB');
+                    return;
+                }
+                
+                const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'video/mp4', 'video/webm', 'application/pdf', 'text/plain'];
+                if (!allowedTypes.includes(file.type)) {
+                    alert('File type not supported. Please use images, videos, PDF, or text files.');
+                    return;
+                }
+                
+                showUploadProgress();
+                
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    socket.emit('upload_file', {
+                        filename: file.name,
+                        file_data: event.target.result
+                    });
+                };
+                
+                reader.onerror = function() {
+                    hideUploadProgress();
+                    alert('Error reading file');
+                };
+                
+                reader.readAsDataURL(file);
+            }
+            
+            e.target.value = '';
         });
         
         socket.on('user_joined', (data) => {
@@ -635,7 +829,7 @@ def index():
             document.getElementById('room-code').textContent = code;
         }
         
-        function addMessage(user, msg, timestamp) {
+        function addMessage(user, msg, timestamp, file = null) {
             const messagesDiv = document.getElementById('messages');
             
             const messageDiv = document.createElement('div');
@@ -654,16 +848,81 @@ def index():
             
             headerDiv.appendChild(usernameSpan);
             headerDiv.appendChild(timestampSpan);
-            
-            const textDiv = document.createElement('div');
-            textDiv.className = 'message-text';
-            textDiv.textContent = msg;
-            
             messageDiv.appendChild(headerDiv);
-            messageDiv.appendChild(textDiv);
-            messagesDiv.appendChild(messageDiv);
             
+            if (msg) {
+                const textDiv = document.createElement('div');
+                textDiv.className = 'message-text';
+                textDiv.textContent = msg;
+                messageDiv.appendChild(textDiv);
+            }
+            
+            if (file) {
+                const fileDiv = document.createElement('div');
+                fileDiv.className = 'message-file';
+                
+                if (file.type === 'image') {
+                    fileDiv.innerHTML = `
+                        <div class="media-preview">
+                            <img src="${file.url}" alt="${file.filename}" onclick="window.open('${file.url}', '_blank')">
+                        </div>
+                    `;
+                } else if (file.type === 'video') {
+                    fileDiv.innerHTML = `
+                        <div class="media-preview">
+                            <video controls>
+                                <source src="${file.url}" type="video/mp4">
+                                Your browser does not support the video tag.
+                            </video>
+                        </div>
+                    `;
+                } else {
+                    const icon = getFileIcon(file.filename);
+                    fileDiv.innerHTML = `
+                        <div class="file-preview" onclick="window.open('${file.url}', '_blank')">
+                            <div class="file-icon">${icon}</div>
+                            <div class="file-info">
+                                <div class="file-name">${file.filename}</div>
+                                <div class="file-size">${formatFileSize(file.size)}</div>
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                messageDiv.appendChild(fileDiv);
+            }
+            
+            messagesDiv.appendChild(messageDiv);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+        
+        function getFileIcon(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            const icons = {
+                'pdf': '📄',
+                'doc': '📝',
+                'docx': '📝',
+                'txt': '📄',
+                'zip': '📦',
+                'rar': '📦'
+            };
+            return icons[ext] || '📎';
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function showUploadProgress() {
+            document.getElementById('upload-progress').style.display = 'block';
+        }
+
+        function hideUploadProgress() {
+            document.getElementById('upload-progress').style.display = 'none';
         }
         
         function addSystemMessage(msg) {
@@ -732,8 +991,89 @@ def join_room_with_code(data):
         print(f"Error joining room: {e}")
         emit('error', {'message': 'Failed to join room'})
 
+@socketio.on('upload_file')
+def handle_file_upload(data):
+    try:
+        if request.sid not in users:
+            return
+        
+        username = users[request.sid]['username']
+        room = users[request.sid]['room']
+        
+        # Decode base64 file data
+        file_data = base64.b64decode(data['file_data'].split(',')[1])
+        filename = secure_filename(data['filename'])
+        
+        if not allowed_file(filename):
+            emit('upload_error', {'message': 'File type not allowed'})
+            return
+        
+        # Generate unique filename
+        unique_filename = f"{uuid.uuid4()}_{filename}"
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+        
+        # Save file
+        with open(file_path, 'wb') as f:
+            f.write(file_data)
+        
+        # Create message data
+        timestamp = datetime.now().strftime('%H:%M')
+        message_data = {
+            'username': username,
+            'message': '',
+            'timestamp': timestamp,
+            'file': {
+                'filename': filename,
+                'url': f'/uploads/{unique_filename}',
+                'type': get_file_type(filename),
+                'size': len(file_data)
+            }
+        }
+        
+        # Store in room history
+        if room in rooms:
+            rooms[room]['messages'].append(message_data)
+            
+            # Keep only last 100 messages
+            if len(rooms[room]['messages']) > 100:
+                rooms[room]['messages'] = rooms[room]['messages'][-100:]
+        
+        # Broadcast to room
+        emit('message', message_data, room=room)
+        print(f"File uploaded: {filename} by {username} in {room}")
+        
+    except Exception as e:
+        print(f"Error uploading file: {e}")
+        emit('upload_error', {'message': 'Upload failed'})
+
 @socketio.on('send_message')
 def send_message(data):
+    try:
+        if request.sid in users:
+            username = users[request.sid]['username']
+            room = users[request.sid]['room']
+            message = data['message']
+            timestamp = datetime.now().strftime('%H:%M')
+            
+            message_data = {
+                'username': username,
+                'message': message,
+                'timestamp': timestamp
+            }
+            
+            # Store in room history
+            if room in rooms:
+                rooms[room]['messages'].append(message_data)
+                
+                # Keep only last 100 messages
+                if len(rooms[room]['messages']) > 100:
+                    rooms[room]['messages'] = rooms[room]['messages'][-100:]
+            
+            emit('message', message_data, room=room)
+            print(f"Message from {username} in {room}: {message}")
+            
+    except Exception as e:
+        print(f"Error sending message: {e}")
     try:
         if request.sid in users:
             username = users[request.sid]['username']
