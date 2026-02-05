@@ -1,11 +1,22 @@
-from flask import Flask, render_template_string
+from flask import Flask, render_template_string, request
 from flask_socketio import SocketIO, emit, join_room
 import random
 import string
+import os
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'secret'
-socketio = SocketIO(app, cors_allowed_origins="*")
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'fallback-secret-key')
+
+# Production-ready SocketIO configuration
+socketio = SocketIO(
+    app, 
+    cors_allowed_origins="*",
+    async_mode='threading',
+    logger=True,
+    engineio_logger=True,
+    ping_timeout=60,
+    ping_interval=25
+)
 
 users = {}
 rooms = {}
@@ -89,10 +100,39 @@ def index():
     </div>
     
     <script>
-        const socket = io();
+        // Production-ready Socket.IO connection
+        const socket = io({
+            transports: ['polling', 'websocket'],
+            upgrade: true,
+            timeout: 20000,
+            forceNew: false,
+            reconnection: true,
+            reconnectionDelay: 1000,
+            reconnectionAttempts: 5,
+            maxReconnectionAttempts: 5
+        });
+        
         let username = '';
         let currentRoom = '';
         let currentCode = '';
+        
+        // Connection status handling
+        socket.on('connect', () => {
+            console.log('Connected to server');
+        });
+        
+        socket.on('disconnect', () => {
+            console.log('Disconnected from server');
+        });
+        
+        socket.on('connect_error', (error) => {
+            console.log('Connection error:', error);
+            setTimeout(() => {
+                if (!socket.connected) {
+                    alert('Connection failed. Please refresh and try again.');
+                }
+            }, 3000);
+        });
         
         function switchTab(tab) {
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -105,14 +145,38 @@ def index():
             username = document.getElementById('username').value.trim();
             const roomname = document.getElementById('roomname').value.trim() || 'general';
             if (!username) { alert('Enter username'); return; }
+            
+            // Disable button during request
+            const btn = event.target;
+            btn.disabled = true;
+            btn.textContent = 'Creating...';
+            
             socket.emit('create_room', {username, roomname});
+            
+            // Reset button after timeout
+            setTimeout(() => {
+                btn.disabled = false;
+                btn.textContent = 'Create & Join';
+            }, 10000);
         }
         
         function joinRoom() {
             username = document.getElementById('username').value.trim();
             const code = document.getElementById('code').value.trim().toUpperCase();
             if (!username || !code) { alert('Enter username and code'); return; }
+            
+            // Disable button during request
+            const btn = event.target;
+            btn.disabled = true;
+            btn.textContent = 'Joining...';
+            
             socket.emit('join_room', {username, code});
+            
+            // Reset button after timeout
+            setTimeout(() => {
+                btn.disabled = false;
+                btn.textContent = 'Join Room';
+            }, 10000);
         }
         
         function sendMessage() {
@@ -124,24 +188,52 @@ def index():
         }
         
         function copyCode() {
-            navigator.clipboard.writeText(currentCode);
-            alert('Code copied!');
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(currentCode).then(() => {
+                    alert('Code copied!');
+                });
+            } else {
+                // Fallback for older browsers
+                const textArea = document.createElement("textarea");
+                textArea.value = currentCode;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                alert('Code copied!');
+            }
         }
         
         socket.on('room_created', (data) => {
             currentRoom = data.room;
             currentCode = data.code;
             showChat(data.room, data.code);
+            // Reset button
+            document.querySelectorAll('button').forEach(btn => {
+                btn.disabled = false;
+                if (btn.textContent === 'Creating...') btn.textContent = 'Create & Join';
+            });
         });
         
         socket.on('room_joined', (data) => {
             currentRoom = data.room;
             currentCode = data.code;
             showChat(data.room, data.code);
+            // Reset button
+            document.querySelectorAll('button').forEach(btn => {
+                btn.disabled = false;
+                if (btn.textContent === 'Joining...') btn.textContent = 'Join Room';
+            });
         });
         
         socket.on('error', (data) => {
             alert(data.message);
+            // Reset buttons
+            document.querySelectorAll('button').forEach(btn => {
+                btn.disabled = false;
+                if (btn.textContent === 'Creating...') btn.textContent = 'Create & Join';
+                if (btn.textContent === 'Joining...') btn.textContent = 'Join Room';
+            });
         });
         
         socket.on('message', (data) => {
@@ -173,51 +265,87 @@ def index():
 
 @socketio.on('create_room')
 def create_room(data):
-    username = data['username']
-    roomname = data['roomname']
-    code = generate_code()
-    
-    users[request.sid] = {'username': username, 'room': roomname}
-    
-    if roomname not in rooms:
-        rooms[roomname] = {'users': [], 'messages': []}
-    
-    rooms[roomname]['users'].append(username)
-    codes[code] = roomname
-    
-    join_room(roomname)
-    emit('room_created', {'room': roomname, 'code': code})
-    emit('users_update', {'users': rooms[roomname]['users']}, room=roomname)
+    try:
+        username = data['username']
+        roomname = data['roomname']
+        code = generate_code()
+        
+        users[request.sid] = {'username': username, 'room': roomname}
+        
+        if roomname not in rooms:
+            rooms[roomname] = {'users': [], 'messages': []}
+        
+        rooms[roomname]['users'].append(username)
+        codes[code] = roomname
+        
+        join_room(roomname)
+        emit('room_created', {'room': roomname, 'code': code})
+        emit('users_update', {'users': rooms[roomname]['users']}, room=roomname)
+        
+        print(f"Room created: {roomname} with code {code} by {username}")
+        
+    except Exception as e:
+        print(f"Error creating room: {e}")
+        emit('error', {'message': 'Failed to create room'})
 
 @socketio.on('join_room')
 def join_room_with_code(data):
-    username = data['username']
-    code = data['code']
-    
-    if code not in codes:
-        emit('error', {'message': 'Invalid code'})
-        return
-    
-    roomname = codes[code]
-    users[request.sid] = {'username': username, 'room': roomname}
-    
-    if roomname not in rooms:
-        rooms[roomname] = {'users': [], 'messages': []}
-    
-    rooms[roomname]['users'].append(username)
-    
-    join_room(roomname)
-    emit('room_joined', {'room': roomname, 'code': code})
-    emit('users_update', {'users': rooms[roomname]['users']}, room=roomname)
+    try:
+        username = data['username']
+        code = data['code']
+        
+        if code not in codes:
+            emit('error', {'message': 'Invalid room code'})
+            return
+        
+        roomname = codes[code]
+        users[request.sid] = {'username': username, 'room': roomname}
+        
+        if roomname not in rooms:
+            rooms[roomname] = {'users': [], 'messages': []}
+        
+        rooms[roomname]['users'].append(username)
+        
+        join_room(roomname)
+        emit('room_joined', {'room': roomname, 'code': code})
+        emit('users_update', {'users': rooms[roomname]['users']}, room=roomname)
+        
+        print(f"User {username} joined room {roomname} with code {code}")
+        
+    except Exception as e:
+        print(f"Error joining room: {e}")
+        emit('error', {'message': 'Failed to join room'})
 
 @socketio.on('send_message')
 def send_message(data):
-    if request.sid in users:
-        username = users[request.sid]['username']
-        room = users[request.sid]['room']
-        message = data['message']
-        
-        emit('message', {'username': username, 'message': message}, room=room)
+    try:
+        if request.sid in users:
+            username = users[request.sid]['username']
+            room = users[request.sid]['room']
+            message = data['message']
+            
+            emit('message', {'username': username, 'message': message}, room=room)
+            print(f"Message from {username} in {room}: {message}")
+            
+    except Exception as e:
+        print(f"Error sending message: {e}")
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    try:
+        if request.sid in users:
+            username = users[request.sid]['username']
+            room = users[request.sid]['room']
+            
+            if room in rooms and username in rooms[room]['users']:
+                rooms[room]['users'].remove(username)
+                emit('users_update', {'users': rooms[room]['users']}, room=room)
+            
+            del users[request.sid]
+            print(f"User {username} disconnected from {room}")
+            
+    except Exception as e:
+        print(f"Error handling disconnect: {e}")
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
