@@ -59,7 +59,10 @@ def index():
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="theme-color" content="#ffb6c1">
     <title>Chat App</title>
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <style>
@@ -67,6 +70,7 @@ def index():
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
         }
 
         body {
@@ -76,6 +80,9 @@ def index():
             display: flex;
             justify-content: center;
             align-items: center;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            overflow-x: hidden;
         }
 
         #login {
@@ -312,11 +319,16 @@ def index():
             overflow-y: auto;
             padding: 20px;
             background: #fff5f7;
+            -webkit-overflow-scrolling: touch;
+            scroll-behavior: smooth;
         }
 
         .message {
             margin-bottom: 15px;
             animation: fadeIn 0.3s;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            border-radius: 10px;
         }
 
         .message-header {
@@ -535,19 +547,287 @@ def index():
             .sidebar {
                 width: 100%;
                 height: auto;
-                max-height: 200px;
+                max-height: 250px;
                 order: 2;
+                overflow-y: auto;
             }
             
             .chat-main {
                 order: 1;
-                height: calc(100vh - 200px);
+                height: calc(100vh - 250px);
             }
             
             .container {
                 min-width: 300px;
                 margin: 20px;
                 padding: 30px;
+                max-width: 90vw;
+            }
+            
+            .room-code-display {
+                margin-top: 10px;
+                padding: 10px;
+            }
+            
+            .online-users {
+                padding: 15px;
+            }
+            
+            .messages {
+                padding: 15px;
+            }
+            
+            .input-area {
+                padding: 15px;
+            }
+            
+            .message-text {
+                max-width: 85%;
+            }
+            
+            .message-file {
+                max-width: 250px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 0;
+            }
+            
+            .container {
+                min-width: 280px;
+                margin: 10px;
+                padding: 20px;
+                border-radius: 10px;
+            }
+            
+            h1 {
+                font-size: 24px;
+                margin-bottom: 20px;
+            }
+            
+            .tab-container {
+                flex-direction: column;
+                gap: 5px;
+                margin: 15px 0 10px 0;
+            }
+            
+            .tab-btn {
+                padding: 12px;
+                font-size: 16px;
+            }
+            
+            input {
+                padding: 14px;
+                font-size: 16px; /* Prevents zoom on iOS */
+            }
+            
+            .primary-btn {
+                padding: 16px;
+                font-size: 18px;
+            }
+            
+            .sidebar {
+                max-height: 200px;
+            }
+            
+            .room-info {
+                padding: 15px;
+            }
+            
+            .room-info h2 {
+                font-size: 18px;
+                margin-bottom: 10px;
+            }
+            
+            .code-box {
+                padding: 10px 12px;
+            }
+            
+            .code {
+                font-size: 18px;
+                letter-spacing: 2px;
+            }
+            
+            .online-users {
+                padding: 10px 15px;
+            }
+            
+            .online-users h3 {
+                font-size: 12px;
+                margin-bottom: 10px;
+            }
+            
+            .chat-main {
+                height: calc(100vh - 200px);
+            }
+            
+            .messages {
+                padding: 10px;
+            }
+            
+            .message {
+                margin-bottom: 12px;
+            }
+            
+            .message-header {
+                flex-wrap: wrap;
+                gap: 5px;
+            }
+            
+            .username {
+                font-size: 14px;
+            }
+            
+            .message-timestamp {
+                font-size: 11px;
+            }
+            
+            .message-text {
+                padding: 8px 12px;
+                font-size: 14px;
+                max-width: 90%;
+            }
+            
+            .input-area {
+                padding: 10px;
+            }
+            
+            .input-container {
+                padding: 6px;
+            }
+            
+            #message {
+                padding: 10px 12px;
+                font-size: 16px; /* Prevents zoom on iOS */
+            }
+            
+            .file-btn, .send-btn {
+                width: 36px;
+                height: 36px;
+                font-size: 16px;
+            }
+            
+            .message-file {
+                max-width: 200px;
+            }
+            
+            .file-preview {
+                padding: 8px;
+                gap: 8px;
+            }
+            
+            .file-icon {
+                width: 32px;
+                height: 32px;
+                font-size: 18px;
+            }
+            
+            .file-name {
+                font-size: 13px;
+            }
+            
+            .file-size {
+                font-size: 11px;
+            }
+            
+            .upload-progress {
+                top: 10px;
+                right: 10px;
+                left: 10px;
+                padding: 10px 15px;
+            }
+            
+            .progress-bar {
+                width: 100%;
+            }
+        }
+
+        @media (max-width: 320px) {
+            .container {
+                margin: 5px;
+                padding: 15px;
+            }
+            
+            h1 {
+                font-size: 20px;
+            }
+            
+            input {
+                padding: 12px;
+            }
+            
+            .primary-btn {
+                padding: 14px;
+                font-size: 16px;
+            }
+            
+            .code {
+                font-size: 16px;
+                letter-spacing: 1px;
+            }
+            
+            .message-text {
+                padding: 6px 10px;
+                font-size: 13px;
+            }
+            
+            .file-btn, .send-btn {
+                width: 32px;
+                height: 32px;
+                font-size: 14px;
+            }
+            
+            .message-file {
+                max-width: 180px;
+            }
+        }
+
+        /* Landscape orientation for mobile */
+        @media (max-height: 500px) and (orientation: landscape) {
+            .sidebar {
+                max-height: 150px;
+            }
+            
+            .chat-main {
+                height: calc(100vh - 150px);
+            }
+            
+            .container {
+                padding: 20px;
+            }
+            
+            h1 {
+                font-size: 20px;
+                margin-bottom: 15px;
+            }
+            
+            .tab-container {
+                margin: 10px 0;
+            }
+        }
+
+        /* Touch-friendly improvements */
+        @media (hover: none) and (pointer: coarse) {
+            .tab-btn, .primary-btn, .file-btn, .send-btn, .copy-btn {
+                min-height: 44px; /* Apple's recommended touch target */
+            }
+            
+            .file-preview, .media-preview img {
+                min-height: 44px;
+            }
+            
+            input {
+                min-height: 44px;
+            }
+        }
+
+        /* High DPI displays */
+        @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+            .message-text {
+                -webkit-font-smoothing: antialiased;
+                -moz-osx-font-smoothing: grayscale;
             }
         }
     </style>
@@ -708,6 +988,7 @@ def index():
         function sendMessage() {
             const msg = document.getElementById('message').value.trim();
             if (msg) {
+                console.log('Sending message:', msg);
                 socket.emit('send_message', {message: msg});
                 document.getElementById('message').value = '';
             }
@@ -763,6 +1044,7 @@ def index():
         });
         
         socket.on('message', (data) => {
+            console.log('Received message:', data);
             addMessage(data.username, data.message, data.timestamp, data.file);
             if (data.file) {
                 hideUploadProgress();
@@ -827,6 +1109,11 @@ def index():
             document.getElementById('chat').style.display = 'block';
             document.getElementById('room-title').textContent = room;
             document.getElementById('room-code').textContent = code;
+            
+            // Add a test message to verify the messages area is working
+            setTimeout(() => {
+                addMessage('System', 'Welcome to the chat room!', new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
+            }, 500);
         }
         
         function addMessage(user, msg, timestamp, file = null) {
@@ -932,6 +1219,59 @@ def index():
             messageDiv.textContent = msg;
             messagesDiv.appendChild(messageDiv);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+        
+        // Responsive improvements
+        function adjustForMobile() {
+            const isMobile = window.innerWidth <= 768;
+            const isSmallMobile = window.innerWidth <= 480;
+            
+            if (isMobile) {
+                // Auto-hide sidebar on mobile when typing
+                const messageInput = document.getElementById('message');
+                if (messageInput) {
+                    messageInput.addEventListener('focus', () => {
+                        if (isSmallMobile) {
+                            const sidebar = document.querySelector('.sidebar');
+                            if (sidebar) sidebar.style.display = 'none';
+                        }
+                    });
+                    
+                    messageInput.addEventListener('blur', () => {
+                        if (isSmallMobile) {
+                            setTimeout(() => {
+                                const sidebar = document.querySelector('.sidebar');
+                                if (sidebar) sidebar.style.display = 'flex';
+                            }, 100);
+                        }
+                    });
+                }
+            }
+        }
+        
+        // Handle orientation changes
+        function handleOrientationChange() {
+            setTimeout(() => {
+                const messagesDiv = document.getElementById('messages');
+                if (messagesDiv) {
+                    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                }
+            }, 100);
+        }
+        
+        // Initialize responsive features
+        window.addEventListener('load', adjustForMobile);
+        window.addEventListener('resize', adjustForMobile);
+        window.addEventListener('orientationchange', handleOrientationChange);
+        
+        // Prevent zoom on iOS when focusing inputs
+        if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
+            const inputs = document.querySelectorAll('input[type="text"]');
+            inputs.forEach(input => {
+                input.addEventListener('focus', () => {
+                    input.style.fontSize = '16px';
+                });
+            });
         }
     </script>
 </body>
